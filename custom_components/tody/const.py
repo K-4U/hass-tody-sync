@@ -30,9 +30,6 @@ DEFAULT_LOOKAHEAD_DAYS: Final = 1
 MIN_LOOKAHEAD_DAYS: Final = 0
 MAX_LOOKAHEAD_DAYS: Final = 7
 
-# Tody area ids whose list has been placed in a name-matched HA area once (never redone).
-CONF_AUTO_LINKED_AREAS: Final = "auto_linked_areas"
-
 CONF_SCAN_INTERVAL: Final = "scan_interval"  # minutes
 DEFAULT_SCAN_INTERVAL: Final = 15
 MIN_SCAN_INTERVAL: Final = 5

@@ -46,10 +46,6 @@
           "lookahead_days": "Toon naast achterstallige taken en taken van vandaag ook taken die binnen dit aantal dagen moeten (0-7).",
           "scan_interval": "Hoe vaak taken uit Tody worden opgehaald (5-240 minuten)."
         }
-      },
-      "areas": {
-        "title": "Tody-ruimtes koppelen aan Home Assistant-ruimtes",
-        "description": "De takenlijst van elke Tody-ruimte wordt in de Home Assistant-ruimte geplaatst die je hier kiest (gelijk aan de ruimte-instelling van de entiteit). Automatiseringen kunnen dit gebruiken, bijvoorbeeld om een robotstofzuiger naar ruimtes met openstaande taken te sturen. Laat leeg om te ontkoppelen."
       }
     }
   },
@@ -66,6 +62,11 @@
       "due_today": {
         "name": "Vandaag te doen"
       }
+    }
+  },
+  "device": {
+    "area": {
+      "name": "Tody-taken"
     }
   }
 }

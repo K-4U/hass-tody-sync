@@ -60,15 +60,15 @@ Configure under the integration's **Configure** button.
 
 Data is polled; there is no live listener.
 
-## Linking Tody areas to Home Assistant areas
+## Tody areas in Home Assistant areas
 
-Each Tody area's to-do list can be placed in a Home Assistant area:
+Each Tody area becomes its own device, **Tody tasks**, holding that area's to-do list. Following Home Assistant's naming conventions the name says what it is, not where: HA shows the area alongside it, and entity IDs include it (e.g. `todo.kitchen_tody_tasks`). The Tody area's own name is in the list's `tody_area` attribute.
 
-- **Automatically:** when a Tody area's list is first created, it goes into the HA area with the same name or alias (case-insensitive), if there is one. This happens once per area; if you unlink it later, it stays unlinked.
-- **Options:** the second page of **Configure** shows every Tody area with an area picker. Leave a picker empty to unlink.
-- **Entity settings:** the link *is* the to-do list entity's area, so changing the area in that entity's settings does the same thing.
+- When an area device is first created, it is placed in the HA area with the same name. If that area doesn't exist yet, Home Assistant creates it (standard behaviour for suggested areas).
+- After that the area is yours: change it on the device page like any other device. The integration never moves it back.
+- All tasks, the person lists and the sensors stay on the main **Tody** device.
 
-The **Overdue tasks** and **Due today** sensors list every task under the `items` attribute (`name`, `area`, `ha_area`, `due`), plus `ha_areas`, the distinct HA areas with such tasks.
+The **Overdue tasks** and **Due today** sensors list every task under the `items` attribute (`name`, `area` = Tody area, `ha_area` = HA area of that area's device, `due`), plus `ha_areas`, the distinct HA areas with such tasks.
 
 ### Example: vacuum rooms that have a due vacuum task
 

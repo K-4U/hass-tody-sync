@@ -1,15 +1,16 @@
-"""Linking Tody areas to Home Assistant areas."""
+"""Tody areas as devices in Home Assistant areas."""
 
 from __future__ import annotations
 
 from unittest.mock import MagicMock
 
 from homeassistant.core import HomeAssistant
-from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.helpers import area_registry as ar, entity_registry as er
+from homeassistant.helpers import area_registry as ar, device_registry as dr, entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.tody.const import CONF_LOOKAHEAD_DAYS, CONF_SCAN_INTERVAL
+from custom_components.tody.const import DOMAIN
+
+from .conftest import MASTERDATA_ID
 
 
 async def _setup(hass: HomeAssistant, entry: MockConfigEntry) -> None:
@@ -19,62 +20,60 @@ async def _setup(hass: HomeAssistant, entry: MockConfigEntry) -> None:
     await hass.async_block_till_done()
 
 
-def _area_of(hass: HomeAssistant, entity_id: str) -> str | None:
-    return er.async_get(hass).async_get(entity_id).area_id
+def _area_device(hass: HomeAssistant, tody_area_id: str, entry_id: str) -> dr.DeviceEntry:
+    return dr.async_get(hass).async_get_device_by_identifier((DOMAIN, f"{MASTERDATA_ID}_area_{tody_area_id}"), entry_id)
 
 
-async def test_new_area_lists_are_matched_by_name_once(
+async def test_area_devices_land_in_suggested_area(
     hass: HomeAssistant, config_entry: MockConfigEntry, mock_client: MagicMock
 ) -> None:
-    """A Tody area list lands in the HA area with the same name; an unlink is not undone later."""
-    kitchen = ar.async_get(hass).async_create("kitchen")  # case-insensitive match with "Kitchen"
-    await _setup(hass, config_entry)
-
-    assert _area_of(hass, "todo.tody_kitchen") == kitchen.id
-    assert _area_of(hass, "todo.tody_bathroom") is None  # no HA area called Bathroom
-    assert sorted(config_entry.options["auto_linked_areas"]) == ["a-bath", "a-kitchen"]
-
-    # The user unlinks the kitchen; a reload must not link it again.
-    er.async_get(hass).async_update_entity("todo.tody_kitchen", area_id=None)
-    assert await hass.config_entries.async_reload(config_entry.entry_id)
-    await hass.async_block_till_done()
-    assert _area_of(hass, "todo.tody_kitchen") is None
-
-
-async def test_options_link_and_unlink(
-    hass: HomeAssistant, config_entry: MockConfigEntry, mock_client: MagicMock
-) -> None:
-    """The options step writes the chosen HA area to each area list."""
-    areas = ar.async_get(hass)
-    kitchen = areas.async_create("Kitchen")
-    bathroom = areas.async_create("Downstairs bathroom")
-    await _setup(hass, config_entry)
-
-    result = await hass.config_entries.options.async_init(config_entry.entry_id)
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {CONF_LOOKAHEAD_DAYS: 1, CONF_SCAN_INTERVAL: 15}
-    )
-    assert result["step_id"] == "areas"
-    # Fields are the Tody area names, pre-filled with the current links.
-    suggested = {str(key): key.description.get("suggested_value") for key in result["data_schema"].schema}
-    assert suggested == {"Bathroom": None, "Kitchen": kitchen.id}
-
-    result = await hass.config_entries.options.async_configure(result["flow_id"], {"Bathroom": bathroom.id})
-    await hass.async_block_till_done()
-    assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert _area_of(hass, "todo.tody_bathroom") == bathroom.id
-    assert _area_of(hass, "todo.tody_kitchen") is None  # left empty -> unlinked
-
-
-async def test_sensor_exposes_linked_ha_areas(
-    hass: HomeAssistant, config_entry: MockConfigEntry, mock_client: MagicMock
-) -> None:
-    """Overdue sensor lists per task its Tody area and linked HA area."""
+    """New area devices go to the HA area with the Tody area's name; entities themselves get no area."""
     kitchen = ar.async_get(hass).async_create("Kitchen")
     await _setup(hass, config_entry)
 
-    attrs = hass.states.get("sensor.tody_overdue_tasks").attributes
-    assert attrs["ha_areas"] == ([kitchen.id] if any(i["area"] == "Kitchen" for i in attrs["items"]) else [])
-    for item in attrs["items"]:
-        assert item["ha_area"] == (kitchen.id if item["area"] == "Kitchen" else None)
-        assert set(item) == {"name", "area", "ha_area", "due"}
+    assert _area_device(hass, "a-kitchen", config_entry.entry_id).area_id == kitchen.id
+    # Standard HA behaviour: a suggested area that doesn't exist yet is created.
+    assert _area_device(hass, "a-bath", config_entry.entry_id).area_id == ar.async_get(hass).async_get_area_by_name("Bathroom").id
+    assert er.async_get(hass).async_get("todo.kitchen_tody_tasks").area_id is None
+
+
+async def test_user_area_choice_is_kept(
+    hass: HomeAssistant, config_entry: MockConfigEntry, mock_client: MagicMock
+) -> None:
+    """After creation the user owns the device's area; a reload doesn't move it back."""
+    await _setup(hass, config_entry)
+    office = ar.async_get(hass).async_create("Office")
+    dr.async_get(hass).async_update_device(_area_device(hass, "a-kitchen", config_entry.entry_id).id, area_id=office.id)
+
+    assert await hass.config_entries.async_reload(config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert _area_device(hass, "a-kitchen", config_entry.entry_id).area_id == office.id
+
+
+async def test_sensor_exposes_ha_areas(
+    hass: HomeAssistant, config_entry: MockConfigEntry, mock_client: MagicMock
+) -> None:
+    """Sensor items carry the HA area of their Tody area and follow device and entity area changes."""
+    await _setup(hass, config_entry)
+    areas = ar.async_get(hass)
+    kitchen = areas.async_get_area_by_name("Kitchen")
+
+    def items() -> list[dict]:
+        return hass.states.get("sensor.tody_overdue_tasks").attributes["items"]
+
+    kitchen_items = [i for i in items() if i["area"] == "Kitchen"]
+    assert kitchen_items and all(i["ha_area"] == kitchen.id for i in kitchen_items)
+    assert set(items()[0]) == {"name", "area", "ha_area", "due"}
+
+    # Moving the device updates the attributes right away.
+    office = areas.async_create("Office")
+    dr.async_get(hass).async_update_device(_area_device(hass, "a-kitchen", config_entry.entry_id).id, area_id=office.id)
+    await hass.async_block_till_done()
+    assert all(i["ha_area"] == office.id for i in items() if i["area"] == "Kitchen")
+    assert office.id in hass.states.get("sensor.tody_overdue_tasks").attributes["ha_areas"]
+
+    # A user override on the list entity wins over the device's area.
+    hall = areas.async_create("Hall")
+    er.async_get(hass).async_update_entity("todo.kitchen_tody_tasks", area_id=hall.id)
+    await hass.async_block_till_done()
+    assert all(i["ha_area"] == hall.id for i in items() if i["area"] == "Kitchen")

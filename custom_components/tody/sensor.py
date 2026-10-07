@@ -10,11 +10,11 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription, SensorStateClass
 from homeassistant.core import Event, HomeAssistant, callback
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import model
-from .areas import linked_ha_area
+from .areas import ha_area_of
 from .coordinator import TodyConfigEntry, TodyCoordinator
 from .entity import TodyEntity, today
 from .model import Task, TodyData
@@ -74,21 +74,33 @@ class TodyTaskCountSensor(TodyEntity, SensorEntity):
         self.entity_description = description
 
     async def async_added_to_hass(self) -> None:
-        """Also refresh the ha_area attributes when an area link changes."""
+        """Also refresh the ha_area attributes when a list's or device's area changes."""
         await super().async_added_to_hass()
 
         @callback
         def _area_changed(event_data: er.EventEntityRegistryUpdatedData) -> bool:
             return event_data["action"] == "update" and "area_id" in event_data["changes"]
 
+        @callback
+        def _device_area_changed(event_data: dr.EventDeviceRegistryUpdatedData) -> bool:
+            # New area devices are created straight into their suggested area.
+            return event_data["action"] == "create" or (
+                event_data["action"] == "update" and "area_id" in event_data["changes"]
+            )
+
         self.async_on_remove(
             self.hass.bus.async_listen(
                 er.EVENT_ENTITY_REGISTRY_UPDATED, self._async_area_changed, event_filter=_area_changed
             )
         )
+        self.async_on_remove(
+            self.hass.bus.async_listen(
+                dr.EVENT_DEVICE_REGISTRY_UPDATED, self._async_area_changed, event_filter=_device_area_changed
+            )
+        )
 
     @callback
-    def _async_area_changed(self, _event: Event[er.EventEntityRegistryUpdatedData]) -> None:
+    def _async_area_changed(self, _event: Event) -> None:
         self.async_write_ha_state()
 
     def _tasks(self) -> list[Task]:
@@ -113,7 +125,7 @@ class TodyTaskCountSensor(TodyEntity, SensorEntity):
             {
                 "name": task.name,
                 "area": areas[task.area_id].name if task.area_id in areas else None,
-                "ha_area": linked_ha_area(self.hass, masterdata_id, task.area_id) if task.area_id else None,
+                "ha_area": ha_area_of(self.hass, self.coordinator.config_entry.entry_id, masterdata_id, task.area_id) if task.area_id else None,
                 "due": task.due.isoformat() if task.due else None,
             }
             for task in tasks

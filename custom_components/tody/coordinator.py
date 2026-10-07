@@ -32,6 +32,7 @@ class TodyCoordinator(DataUpdateCoordinator[TodyData]):
     """Polls the Tody data sync and parses it into TodyData."""
 
     config_entry: TodyConfigEntry
+    main_device_id: str
 
     def __init__(self, hass: HomeAssistant, entry: TodyConfigEntry) -> None:
         """Initialize the coordinator."""

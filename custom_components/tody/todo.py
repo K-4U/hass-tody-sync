@@ -10,8 +10,10 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import model
-from .areas import link_ha_area, match_ha_area
-from .const import CONF_AUTO_LINKED_AREAS, CONF_LOOKAHEAD_DAYS, CONF_PARTICIPANT_ID, DEFAULT_LOOKAHEAD_DAYS
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
+
+from .areas import area_device_identifier
+from .const import CONF_LOOKAHEAD_DAYS, CONF_PARTICIPANT_ID, DEFAULT_LOOKAHEAD_DAYS
 from .coordinator import TodyConfigEntry, TodyCoordinator
 from .entity import TodyEntity, today
 from .model import Task
@@ -96,8 +98,10 @@ class TodyAllTasksList(TodyTodoList):
 class _KeyedList(TodyTodoList):
     """A list bound to an area or participant that may disappear from Tody."""
 
-    def __init__(self, coordinator: TodyCoordinator, kind: str, key: str) -> None:
-        super().__init__(coordinator, f"{kind}_{key}")
+    def __init__(
+        self, coordinator: TodyCoordinator, kind: str, key: str, device_info: DeviceInfo | None = None
+    ) -> None:
+        super().__init__(coordinator, f"{kind}_{key}", device_info)
         self._key = key
 
     def _item(self) -> model.Area | model.Participant | None:
@@ -112,38 +116,46 @@ class _KeyedList(TodyTodoList):
         """Unavailable once the area/participant is removed in Tody."""
         return super().available and self._item() is not None
 
-    @property
-    def name(self) -> str | None:
-        """Use the current Tody name."""
-        item = self._item()
-        return item.name if item else None
 
 
 class TodyAreaList(_KeyedList):
-    """Due tasks in one Tody area."""
+    """Due tasks in one Tody area.
+
+    Each Tody area is its own "Tody tasks" device, created in the HA area of the same name.
+    Following HA naming conventions the name says what it is, not where: HA adds the area.
+    """
+
+    _attr_name = None
 
     def __init__(self, coordinator: TodyCoordinator, area_id: str) -> None:
         """Initialize the list."""
-        super().__init__(coordinator, "area", area_id)
+        area = coordinator.data.areas[area_id]
+        super().__init__(
+            coordinator,
+            "area",
+            area_id,
+            DeviceInfo(
+                identifiers={area_device_identifier(coordinator.masterdata_id, area_id)},
+                entry_type=DeviceEntryType.SERVICE,
+                translation_key="area",
+                suggested_area=area.name,
+                manufacturer="Looploop",
+                model="Tody area",
+                via_device_id=coordinator.main_device_id,
+            ),
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str | None]:
+        """The area's name in Tody (the HA area may be named differently)."""
+        area = self._item()
+        return {"tody_area": area.name if area else None}
 
     def _mapping(self, data: model.TodyData) -> Mapping[str, model.Area]:
         return data.areas
 
     def _include(self, task: Task) -> bool:
         return task.area_id == self._key
-
-    async def async_added_to_hass(self) -> None:
-        """The first time this list exists, put it in the HA area with the same name."""
-        await super().async_added_to_hass()
-        entry = self.coordinator.config_entry
-        done: list[str] = entry.options.get(CONF_AUTO_LINKED_AREAS, [])
-        if self._key in done or self.registry_entry is None:
-            return
-        if self.registry_entry.area_id is None and (area := self._item()) and (ha_area := match_ha_area(self.hass, area.name)):
-            link_ha_area(self.hass, self.coordinator.masterdata_id, self._key, ha_area)
-        self.hass.config_entries.async_update_entry(
-            entry, options={**entry.options, CONF_AUTO_LINKED_AREAS: [*done, self._key]}
-        )
 
 
 class TodyPersonList(_KeyedList):
@@ -155,6 +167,12 @@ class TodyPersonList(_KeyedList):
 
     def _mapping(self, data: model.TodyData) -> Mapping[str, model.Participant]:
         return data.participants
+
+    @property
+    def name(self) -> str | None:
+        """Use the participant's current Tody name."""
+        item = self._item()
+        return item.name if item else None
 
     def _include(self, task: Task) -> bool:
         return self._key in task.turn_participant_ids

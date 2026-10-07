@@ -19,11 +19,11 @@ class TodyEntity(CoordinatorEntity[TodyCoordinator]):
 
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator: TodyCoordinator, unique_suffix: str) -> None:
-        """Initialize the entity."""
+    def __init__(self, coordinator: TodyCoordinator, unique_suffix: str, device_info: DeviceInfo | None = None) -> None:
+        """Initialize the entity; by default it belongs to the main Tody device."""
         super().__init__(coordinator)
         self._attr_unique_id = f"{coordinator.masterdata_id}_{unique_suffix}"
-        self._attr_device_info = DeviceInfo(
+        self._attr_device_info = device_info or DeviceInfo(
             identifiers={(DOMAIN, coordinator.masterdata_id)},
             entry_type=DeviceEntryType.SERVICE,
             name=DEVICE_NAME,

@@ -129,15 +129,9 @@ async def test_options_flow(hass: HomeAssistant, mock_client: MagicMock, setup_i
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {CONF_LOOKAHEAD_DAYS: 3, CONF_SCAN_INTERVAL: 30}
     )
-    assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "areas"
-    result = await hass.config_entries.options.async_configure(result["flow_id"], {})
     await hass.async_block_till_done()
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert entry.options[CONF_LOOKAHEAD_DAYS] == 3
-    assert entry.options[CONF_SCAN_INTERVAL] == 30
-    # Bookkeeping of auto-linked areas survives saving the options.
-    assert sorted(entry.options["auto_linked_areas"]) == ["a-bath", "a-kitchen"]
+    assert entry.options == {CONF_LOOKAHEAD_DAYS: 3, CONF_SCAN_INTERVAL: 30}
     assert entry.runtime_data.update_interval.total_seconds() == 30 * 60
     # Look-ahead of 3 days now includes "Windows".
     state = hass.states.get("todo.tody_all_tasks")

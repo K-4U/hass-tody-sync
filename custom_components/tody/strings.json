@@ -46,10 +46,6 @@
           "lookahead_days": "Besides overdue tasks and tasks due today, also show tasks due within this many days (0-7).",
           "scan_interval": "How often to fetch tasks from Tody (5-240 minutes)."
         }
-      },
-      "areas": {
-        "title": "Link Tody areas to Home Assistant areas",
-        "description": "Each Tody area's to-do list is placed in the Home Assistant area you pick here (the same as the entity's area setting). Automations can use this, e.g. to send a robot vacuum to rooms with due tasks. Leave empty to unlink."
       }
     }
   },
@@ -66,6 +62,11 @@
       "due_today": {
         "name": "Due today"
       }
+    }
+  },
+  "device": {
+    "area": {
+      "name": "Tody tasks"
     }
   }
 }
