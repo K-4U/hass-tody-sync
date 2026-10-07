@@ -57,9 +57,15 @@ class TodyTodoList(TodyEntity, TodoListEntity):
     """A read-only to-do list of due Tody tasks."""
 
     _attr_supported_features = TodoListEntityFeature(0)
+    # Lists that mix areas add the area to each item, e.g. "Vacuum floor [Kitchen]".
+    _show_area = True
 
     def _include(self, task: Task) -> bool:
         raise NotImplementedError
+
+    def _summary(self, task: Task, data: model.TodyData) -> str:
+        area = data.areas.get(task.area_id) if task.area_id else None
+        return f"{task.name} [{area.name}]" if self._show_area and area and area.name else task.name
 
     @property
     def todo_items(self) -> list[TodoItem] | None:
@@ -72,7 +78,7 @@ class TodyTodoList(TodyEntity, TodoListEntity):
         return [
             TodoItem(
                 uid=task.id,
-                summary=task.name,
+                summary=self._summary(task, data),
                 status=TodoItemStatus.NEEDS_ACTION,
                 due=task.due,
                 description=model.describe(task, data, language),
@@ -125,6 +131,7 @@ class TodyAreaList(_KeyedList):
     """
 
     _attr_name = None
+    _show_area = False
 
     def __init__(self, coordinator: TodyCoordinator, area_id: str) -> None:
         """Initialize the list."""

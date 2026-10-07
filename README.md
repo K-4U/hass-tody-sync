@@ -4,7 +4,7 @@ A Home Assistant custom integration that shows your [Tody](https://todyapp.com/)
 
 ## What it does
 
-- One **to-do list per Tody area**, plus a combined **All tasks** list.
+- One **to-do list per Tody area**, plus a combined **All tasks** list. Lists that mix areas (All tasks and the person lists) add the area to each item, e.g. `Vacuum floor [Kitchen]`.
 - One **to-do list per person**, showing the tasks where it is that person's turn. Tasks assigned to "everyone" appear on every person's list. The participant the integration joined as gets no list.
 - Sensors **Overdue tasks** and **Due today** (counts).
 - Lists show overdue tasks, tasks due today, and tasks due within the next N days (default 1). Tomorrow's tasks are marked through their due date, which Home Assistant shows in its normal relative format.
