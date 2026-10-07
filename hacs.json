@@ -1,7 +1,6 @@
 {
   "name": "Tody",
   "homeassistant": "2026.9.0",
-  "render_readme": true,
   "zip_release": true,
   "filename": "tody.zip",
   "hide_default_branch": true
