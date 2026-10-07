@@ -12,6 +12,11 @@ permissions:
 jobs:
   checks:
     uses: ./.github/workflows/ci.yml
+    # A called workflow can't have more permissions than its caller.
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
 
   package:
     name: Package for HACS

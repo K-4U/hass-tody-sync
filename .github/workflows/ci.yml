@@ -13,6 +13,10 @@ jobs:
   tests:
     name: Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write # "Test Results" check run
+      pull-requests: write # results comment on pull requests
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
@@ -21,9 +25,16 @@ jobs:
           cache: pip
           cache-dependency-path: requirements_test.txt
       - name: Install test dependencies
-        run: pip install -r requirements_test.txt
+        # The annotate plugin marks failing tests inline in the pull request diff.
+        run: pip install -r requirements_test.txt pytest-github-actions-annotate-failures
       - name: Run tests
-        run: python -m pytest tests -q
+        run: python -m pytest tests -q --junitxml=test-results/junit.xml
+      - name: Publish test results
+        if: ${{ !cancelled() }}
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: test-results/junit.xml
+          check_name: Test Results
 
   hassfest:
     name: Hassfest

@@ -20,5 +20,6 @@ __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
+test-results/
 .DS_Store
 dev/.dev-credentials

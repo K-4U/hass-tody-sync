@@ -136,7 +136,7 @@ uv pip install --python .venv/bin/python -r requirements_test.txt
 
 ### Continuous integration
 
-- **CI** (`.github/workflows/ci.yml`) runs on every pull request and push to `main`: the tests, [hassfest](https://github.com/home-assistant/actions#hassfest) and the [HACS validation action](https://github.com/hacs/action).
+- **CI** (`.github/workflows/ci.yml`) runs on every pull request and push to `main`: the tests (results appear as a **Test Results** check, a pull request comment and inline annotations on failures), [hassfest](https://github.com/home-assistant/actions#hassfest) and the [HACS validation action](https://github.com/hacs/action).
 - **Release** (`.github/workflows/release.yml`) runs when a GitHub release is published with a tag like `v0.2.0`: it reruns CI, sets the manifest version from the tag, inserts the API key from the `FIREBASE_API_KEY` secret and attaches `tody.zip` to the release.
 
 ### Repository setup (once)
