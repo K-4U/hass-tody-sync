@@ -34,7 +34,7 @@ async def test_area_devices_land_in_suggested_area(
     assert _area_device(hass, "a-kitchen", config_entry.entry_id).area_id == kitchen.id
     # Standard HA behaviour: a suggested area that doesn't exist yet is created.
     assert _area_device(hass, "a-bath", config_entry.entry_id).area_id == ar.async_get(hass).async_get_area_by_name("Bathroom").id
-    assert er.async_get(hass).async_get("todo.kitchen_tody_tasks").area_id is None
+    assert er.async_get(hass).async_get("todo.kitchen_kitchen_tasks").area_id is None
 
 
 async def test_user_area_choice_is_kept(
@@ -74,6 +74,6 @@ async def test_sensor_exposes_ha_areas(
 
     # A user override on the list entity wins over the device's area.
     hall = areas.async_create("Hall")
-    er.async_get(hass).async_update_entity("todo.kitchen_tody_tasks", area_id=hall.id)
+    er.async_get(hass).async_update_entity("todo.kitchen_kitchen_tasks", area_id=hall.id)
     await hass.async_block_till_done()
     assert all(i["ha_area"] == hall.id for i in items() if i["area"] == "Kitchen")

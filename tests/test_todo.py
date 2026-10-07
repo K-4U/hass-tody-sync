@@ -41,8 +41,8 @@ async def test_entities_and_unique_ids(hass: HomeAssistant, entity_registry: er.
     """One list per area, an 'All tasks' list and one per participant except our own."""
     expected = {
         "todo.tody_all_tasks": f"{MASTERDATA_ID}_all",
-        "todo.kitchen_tody_tasks": f"{MASTERDATA_ID}_area_a-kitchen",
-        "todo.bathroom_tody_tasks": f"{MASTERDATA_ID}_area_a-bath",
+        "todo.kitchen_kitchen_tasks": f"{MASTERDATA_ID}_area_a-kitchen",
+        "todo.bathroom_bathroom_tasks": f"{MASTERDATA_ID}_area_a-bath",
         "todo.tody_anna": f"{MASTERDATA_ID}_person_{ANNA}",
         "todo.tody_bob": f"{MASTERDATA_ID}_person_{BOB}",
     }
@@ -71,14 +71,14 @@ async def test_device(
     assert len(er.async_entries_for_device(entity_registry, device.id)) == 5  # all, 2 people, 2 sensors
 
     kitchen = device_registry.async_get_device_by_identifier((DOMAIN, f"{MASTERDATA_ID}_area_a-kitchen"), setup_integration.entry_id)
-    assert kitchen.name == "Tody tasks"
+    assert kitchen.name == "Kitchen tasks"
     assert kitchen.model == "Tody area"
     assert kitchen.via_device_id == device.id
     assert [e.entity_id for e in er.async_entries_for_device(entity_registry, kitchen.id)] == [
-        "todo.kitchen_tody_tasks"
+        "todo.kitchen_kitchen_tasks"
     ]
-    state = hass.states.get("todo.kitchen_tody_tasks")
-    assert state.attributes["friendly_name"] == "Tody tasks"
+    state = hass.states.get("todo.kitchen_kitchen_tasks")
+    assert state.attributes["friendly_name"] == "Kitchen tasks"
     assert state.attributes["tody_area"] == "Kitchen"
 
 
@@ -86,18 +86,18 @@ async def test_device(
 async def test_items_per_list(hass: HomeAssistant) -> None:
     """Lists contain due tasks up to tomorrow, filtered by area/turn; paused and later tasks are hidden."""
     assert await _summaries(hass, "todo.tody_all_tasks") == ["Vacuum", "Dishes", "Hass task", "Mirror", "Toilet"]
-    assert await _summaries(hass, "todo.kitchen_tody_tasks") == ["Vacuum", "Dishes", "Hass task"]
-    assert await _summaries(hass, "todo.bathroom_tody_tasks") == ["Mirror", "Toilet"]
+    assert await _summaries(hass, "todo.kitchen_kitchen_tasks") == ["Vacuum", "Dishes", "Hass task"]
+    assert await _summaries(hass, "todo.bathroom_bathroom_tasks") == ["Mirror", "Toilet"]
     assert await _summaries(hass, "todo.tody_anna") == ["Vacuum", "Mirror"]
     assert await _summaries(hass, "todo.tody_bob") == ["Dishes", "Mirror", "Toilet"]
     assert hass.states.get("todo.tody_all_tasks").state == "5"
-    assert hass.states.get("todo.kitchen_tody_tasks").state == "3"
+    assert hass.states.get("todo.kitchen_kitchen_tasks").state == "3"
 
 
 @pytest.mark.usefixtures("setup_integration")
 async def test_item_fields(hass: HomeAssistant) -> None:
     """Items carry uid, a date-only due and a description; they're always needs_action."""
-    items = await _items(hass, "todo.bathroom_tody_tasks")
+    items = await _items(hass, "todo.bathroom_bathroom_tasks")
     toilet = items[1]
     assert toilet["uid"] == "t-tomorrow"
     assert toilet["status"] == "needs_action"
@@ -125,7 +125,7 @@ async def test_lookahead_zero(hass: HomeAssistant, config_entry: MockConfigEntry
     hass.config_entries.async_update_entry(config_entry, options={"lookahead_days": 0})
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
-    assert await _summaries(hass, "todo.bathroom_tody_tasks") == ["Mirror"]
+    assert await _summaries(hass, "todo.bathroom_bathroom_tasks") == ["Mirror"]
 
 
 async def test_dynamic_entities(
@@ -146,17 +146,17 @@ async def test_dynamic_entities(
     await coordinator.async_refresh()
     await hass.async_block_till_done()
 
-    assert await _summaries(hass, "todo.garden_tody_tasks") == ["Mow"]
+    assert await _summaries(hass, "todo.garden_garden_tasks") == ["Mow"]
     assert await _summaries(hass, "todo.tody_cleo") == ["Mow"]
-    assert hass.states.get("todo.bathroom_tody_tasks").state == STATE_UNAVAILABLE
-    assert hass.states.get("todo.kitchen_tody_tasks").state == "3"
+    assert hass.states.get("todo.bathroom_bathroom_tasks").state == STATE_UNAVAILABLE
+    assert hass.states.get("todo.kitchen_kitchen_tasks").state == "3"
 
 
 async def test_midnight_refresh(
     hass: HomeAssistant, setup_integration: MockConfigEntry, mock_client: MagicMock, freezer
 ) -> None:
     """At local midnight the lists are re-evaluated without waiting for a poll."""
-    assert hass.states.get("todo.bathroom_tody_tasks").state == "2"
+    assert hass.states.get("todo.bathroom_bathroom_tasks").state == "2"
     # Stop polling so only the midnight timer can update state.
     setup_integration.runtime_data._unschedule_refresh()
     fetches = mock_client.fetch_snapshot.await_count
@@ -164,5 +164,5 @@ async def test_midnight_refresh(
     freezer.move_to("2026-10-09 07:00:05+00:00")
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
-    assert hass.states.get("todo.bathroom_tody_tasks").state == "3"
+    assert hass.states.get("todo.bathroom_bathroom_tasks").state == "3"
     assert mock_client.fetch_snapshot.await_count == fetches

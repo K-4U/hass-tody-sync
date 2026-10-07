@@ -121,8 +121,7 @@ class _KeyedList(TodyTodoList):
 class TodyAreaList(_KeyedList):
     """Due tasks in one Tody area.
 
-    Each Tody area is its own "Tody tasks" device, created in the HA area of the same name.
-    Following HA naming conventions the name says what it is, not where: HA adds the area.
+    Each Tody area is its own "<area> tasks" device, created in the HA area of the same name.
     """
 
     _attr_name = None
@@ -138,6 +137,7 @@ class TodyAreaList(_KeyedList):
                 identifiers={area_device_identifier(coordinator.masterdata_id, area_id)},
                 entry_type=DeviceEntryType.SERVICE,
                 translation_key="area",
+                translation_placeholders={"area": area.name},
                 suggested_area=area.name,
                 manufacturer="Looploop",
                 model="Tody area",

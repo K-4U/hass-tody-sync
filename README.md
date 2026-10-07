@@ -64,7 +64,7 @@ Data is polled; there is no live listener.
 
 ## Tody areas in Home Assistant areas
 
-Each Tody area becomes its own device, **Tody tasks**, holding that area's to-do list. Following Home Assistant's naming conventions the name says what it is, not where: HA shows the area alongside it, and entity IDs include it (e.g. `todo.kitchen_tody_tasks`). The Tody area's own name is in the list's `tody_area` attribute.
+Each Tody area becomes its own device, e.g. **Kitchen tasks**, holding that area's to-do list. Home Assistant also puts the HA area in entity IDs, so the Kitchen list is `todo.kitchen_kitchen_tasks`. The Tody area's own name is in the list's `tody_area` attribute.
 
 - When an area device is first created, it is placed in the HA area with the same name. If that area doesn't exist yet, Home Assistant creates it (standard behaviour for suggested areas).
 - After that the area is yours: change it on the device page like any other device. The integration never moves it back.
