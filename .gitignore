@@ -1,5 +1,16 @@
-# Pulled Tody APKs (proprietary, large)
+# Pulled Tody APKs (proprietary, large) and anything else holding real Tody data:
+# app packages, emulator images, traffic captures. Never commit these.
 apk/
+*.apk
+*.apks
+*.xapk
+*.avd/
+*.img
+*.qcow2
+*.mitm
+*.har
+*.pcap
+captures/
 
 # Dev Home Assistant runtime data; only configuration.yaml is tracked
 dev/config/*
