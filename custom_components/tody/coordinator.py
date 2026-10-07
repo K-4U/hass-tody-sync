@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 import logging
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -33,6 +34,8 @@ class TodyCoordinator(DataUpdateCoordinator[TodyData]):
 
     config_entry: TodyConfigEntry
     main_device_id: str
+    # Raw data from the last successful poll, for diagnostics.
+    snapshot: dict[str, list[dict[str, Any]]] | None = None
 
     def __init__(self, hass: HomeAssistant, entry: TodyConfigEntry) -> None:
         """Initialize the coordinator."""
@@ -66,4 +69,5 @@ class TodyCoordinator(DataUpdateCoordinator[TodyData]):
             raise ConfigEntryAuthFailed(str(err) or "Access to the Tody data sync was lost") from err
         except TodyConnectionError as err:
             raise UpdateFailed(f"Error communicating with Tody: {err}") from err
+        self.snapshot = snapshot
         return model.parse_snapshot(snapshot, now=dt_util.utcnow(), tz=dt_util.get_default_time_zone())

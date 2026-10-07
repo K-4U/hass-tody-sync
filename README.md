@@ -102,11 +102,14 @@ Adjust `vacuum floor` to match your task names, and `vacuum.robot` to your vacuu
 
 ## How due dates are calculated
 
-A task is due on its **last completion + its interval**. Time during which the task is paused, and vacation time, pushes the due date back, similar to the Tody app. Only the date is used, not the time of day. Nothing is shown as due while a vacation is active.
+- **Interval tasks** ("every 2 weeks") are due on their **last completion + the interval**. Time during which the task is paused, and vacation time, pushes the due date back, similar to the Tody app.
+- **Fixed schedules** (weekdays, days of the month, months) are due on the **first scheduled day after the last completion**, e.g. Monday, Wednesday and Friday.
+- **Seasonal tasks** only count days in their active months.
+
+Only the date is used, not the time of day. Nothing is shown as due while a vacation is active. If something looks off, the integration's **Download diagnostics** gives the raw Tody data without logins or names, which helps with bug reports.
 
 ### Known limitations
 
-- Tasks with fixed weekday or month-day schedules and seasonal tasks are not supported yet.
 - Vacation handling is unverified against the app.
 - "Whose turn it is" is an approximation of Tody's rotation (the next person after whoever did it last).
 
@@ -133,20 +136,3 @@ uv venv --python 3.14 .venv
 uv pip install --python .venv/bin/python -r requirements_test.txt
 .venv/bin/python -m pytest
 ```
-
-### Continuous integration
-
-- **CI** (`.github/workflows/ci.yml`) runs on every pull request and push to `main`: the tests (results appear as a **Test Results** check, a pull request comment and inline annotations on failures), [hassfest](https://github.com/home-assistant/actions#hassfest) and the [HACS validation action](https://github.com/hacs/action).
-- **Release** (`.github/workflows/release.yml`) runs when a GitHub release is published with a tag like `v0.2.0`: it reruns CI, sets the manifest version from the tag, inserts the API key from the `FIREBASE_API_KEY` secret and attaches `tody.zip` to the release.
-
-### Repository setup (once)
-
-1. Add the repository secret `FIREBASE_API_KEY` (Settings → Secrets and variables → Actions).
-2. Require green checks before merging into `main` by applying the ruleset in `.github/rulesets/protect-main.json`:
-
-   ```sh
-   gh api repos/K-4U/hass-tody-sync/rulesets --method POST --input .github/rulesets/protect-main.json
-   ```
-
-   It requires a pull request plus passing **Tests**, **Hassfest** and **HACS validation** checks, and blocks force-pushes and deleting `main`.
-3. HACS validation also expects a repository description and topics (e.g. `home-assistant`, `hacs`, `integration`).

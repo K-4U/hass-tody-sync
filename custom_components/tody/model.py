@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import calendar
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta, tzinfo
@@ -13,6 +14,11 @@ FREQUENCY_MONTHS = 5  # 30 days
 FREQUENCY_YEARS = 6  # 360 days
 
 DATE_RANGE_TASK_PAUSE = 1
+
+# taskTypeStoreVal: 0 = every N days/weeks/..., 1 = fixed schedule (weekdays, days of the month, months).
+TASK_TYPE_FIXED = 1
+# How far ahead to look for the next scheduled day.
+_MAX_SCAN_DAYS = 3 * 366
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +50,12 @@ class Task:
     turn_participant_ids: frozenset[str]
     paused: bool
     archived: bool
+    # Fixed schedule: ISO weekdays (1 = Monday), days of the month, months (1-12). Empty if not used.
+    weekdays: tuple[int, ...] = ()
+    month_days: tuple[int, ...] = ()
+    months: tuple[int, ...] = ()
+    # Seasonal tasks only count in these months (1-12); empty = all year.
+    active_months: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -228,6 +240,125 @@ def compute_turn(task_doc: Mapping[str, Any], last_done_by: str | None, known_id
     return frozenset(p for p in turn if p in known_ids)
 
 
+# --- Rule 8: fixed schedules and seasons ------------------------------------
+
+def _ints(value: Any) -> tuple[int, ...]:
+    return tuple(sorted({i for v in _as_list(value) if (i := _as_int(v, -1)) >= 0}))
+
+
+def schedule_weekdays(task_doc: Mapping[str, Any]) -> tuple[int, ...]:
+    """ISO weekdays (1 = Monday ... 7 = Sunday); a 0 is read as Sunday."""
+    return tuple(sorted({7 if d == 0 else d for d in _ints(task_doc.get("fixedDueWeekDaysStoreVal")) if d <= 7}))
+
+
+def schedule_month_days(task_doc: Mapping[str, Any]) -> tuple[int, ...]:
+    return tuple(d for d in _ints(task_doc.get("fixedDueMonthDaysStoreVal")) if 1 <= d <= 31)
+
+
+def schedule_months(task_doc: Mapping[str, Any]) -> tuple[int, ...]:
+    return tuple(m for m in _ints(task_doc.get("fixedDueMonthsStoreVal")) if 1 <= m <= 12)
+
+
+def season_months(task_doc: Mapping[str, Any]) -> tuple[int, ...]:
+    """Months a seasonal task is active in; empty for all-year tasks."""
+    if not task_doc.get("isSeasonal"):
+        return ()
+    return tuple(m for m in _ints(task_doc.get("activeMonths")) if 1 <= m <= 12)
+
+
+def _add_months(day: date, months: int) -> date:
+    month_index = day.month - 1 + months
+    year, month = day.year + month_index // 12, month_index % 12 + 1
+    return date(year, month, min(day.day, calendar.monthrange(year, month)[1]))
+
+
+def _on_schedule(
+    day: date, weekdays: tuple[int, ...], month_days: tuple[int, ...], months: tuple[int, ...], season: tuple[int, ...]
+) -> bool:
+    if season and day.month not in season:
+        return False
+    if months and day.month not in months:
+        return False
+    if weekdays and day.isoweekday() not in weekdays:
+        return False
+    if month_days:
+        # The 31st in a 30-day month falls on its last day.
+        last = calendar.monthrange(day.year, day.month)[1]
+        return day.day in {min(d, last) for d in month_days}
+    if months and not weekdays:
+        return day.day == 1  # "every October": due from the 1st
+    return True
+
+
+def compute_fixed_due(task_doc: Mapping[str, Any], last_day: date) -> date | None:
+    """First scheduled day after the last completion (local date).
+
+    Tody backdates a new task's first action to the previous scheduled day, so this also
+    gives the right first due date. For every N weeks/months/years, the day must also be
+    at least N-1 periods after the last completion.
+    """
+    weekdays, month_days, months = schedule_weekdays(task_doc), schedule_month_days(task_doc), schedule_months(task_doc)
+    if not (weekdays or month_days or months):
+        return None
+    periods = max(_as_int(task_doc.get("frequency"), 1), 1) - 1
+    frequency_type = _as_int(task_doc.get("frequencyTypeStoreVal"))
+    if frequency_type == FREQUENCY_WEEKS:
+        earliest = last_day + timedelta(weeks=periods)
+    elif frequency_type == FREQUENCY_MONTHS:
+        earliest = _add_months(last_day, periods)
+    elif frequency_type == FREQUENCY_YEARS:
+        earliest = _add_months(last_day, 12 * periods)
+    else:
+        earliest = last_day
+    season = season_months(task_doc)
+    day = earliest + timedelta(days=1)
+    for _ in range(_MAX_SCAN_DAYS):
+        if _on_schedule(day, weekdays, month_days, months, season):
+            return day
+        day += timedelta(days=1)
+    return None
+
+
+def apply_season(due: date, season: tuple[int, ...]) -> date:
+    """Move a due date outside the season to the first day of the next active month."""
+    if not season or due.month in season:
+        return due
+    day = due.replace(day=1)
+    for _ in range(12):
+        day = _add_months(day, 1)
+        if day.month in season:
+            return day
+    return due
+
+
+def is_fixed_schedule(task_doc: Mapping[str, Any]) -> bool:
+    return _as_int(task_doc.get("taskTypeStoreVal")) == TASK_TYPE_FIXED or bool(
+        schedule_weekdays(task_doc) or schedule_month_days(task_doc) or schedule_months(task_doc)
+    )
+
+
+def compute_due(
+    task_doc: Mapping[str, Any],
+    baseline: datetime | None,
+    *,
+    now: datetime,
+    tz: tzinfo,
+    pauses: list[_Range],
+    vacations: list[_Range],
+) -> date | None:
+    """Local due date: a fixed schedule or the interval rule, then limited to the season."""
+    if baseline is None:
+        return None
+    forced = _as_datetime(task_doc.get("forcedDueOn"))
+    due: date | None
+    if is_fixed_schedule(task_doc) and not (forced is not None and forced > baseline):
+        due = compute_fixed_due(task_doc, baseline.astimezone(tz).date())
+    else:
+        due_dt = compute_due_datetime(task_doc, baseline, now=now, pauses=pauses, vacations=vacations)
+        due = due_dt.astimezone(tz).date() if due_dt is not None else None
+    return apply_season(due, season_months(task_doc)) if due is not None else None
+
+
 # --- Snapshot parsing -------------------------------------------------------
 
 def _docs(snapshot: Mapping[str, Any], key: str) -> list[Mapping[str, Any]]:
@@ -290,7 +421,7 @@ def parse_snapshot(snapshot: Mapping[str, list[dict[str, Any]]], *, now: datetim
         actions = actions_by_task.get(task_id, [])
         pauses = _resolve_ranges(doc.get("taskPauses"), date_ranges, type_filter=DATE_RANGE_TASK_PAUSE)
         baseline = compute_baseline(doc, actions)
-        due_dt = compute_due_datetime(doc, baseline, now=now, pauses=pauses, vacations=vacations)
+        due = compute_due(doc, baseline, now=now, tz=tz, pauses=pauses, vacations=vacations)
         last_done, last_done_by = compute_last_done(actions)
         area_id = doc.get("belongsToAreaID")
         tasks[task_id] = Task(
@@ -300,12 +431,16 @@ def parse_snapshot(snapshot: Mapping[str, list[dict[str, Any]]], *, now: datetim
             frequency=_as_int(doc.get("frequency")),
             frequency_type=_as_int(doc.get("frequencyTypeStoreVal")),
             frequency_minutes=_as_int(doc.get("frequencyMinutes")),
-            due=due_dt.astimezone(tz).date() if due_dt is not None else None,
+            due=due,
             last_done=last_done.astimezone(tz) if last_done is not None else None,
             last_done_by=last_done_by,
             turn_participant_ids=compute_turn(doc, last_done_by, participants),
             paused=is_paused(pauses, now),
             archived=is_archived(doc),
+            weekdays=schedule_weekdays(doc),
+            month_days=schedule_month_days(doc),
+            months=schedule_months(doc),
+            active_months=season_months(doc),
         )
 
     sync_name = ""
@@ -369,6 +504,35 @@ def frequency_text(task: Task, language: str) -> str:
     return f"{'Elke' if lang == 'nl' else 'Every'} {count} {unit[1]}"
 
 
+_WEEKDAYS = {
+    "en": ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"),
+    "nl": ("ma", "di", "wo", "do", "vr", "za", "zo"),
+}
+
+
+def _join(items: list[str], lang: str) -> str:
+    return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} {'en' if lang == 'nl' else 'and'} {items[-1]}"
+
+
+def schedule_text(task: Task, language: str) -> str:
+    """Fixed schedule and season, e.g. " on Mon, Wed and Fri (Dec only)"; empty when not used."""
+    lang = _lang(language)
+    nl = lang == "nl"
+    parts = []
+    if task.weekdays:
+        parts.append(f"{'op' if nl else 'on'} {_join([_WEEKDAYS[lang][d - 1] for d in task.weekdays], lang)}")
+    if task.month_days:
+        days = _join([str(d) for d in task.month_days], lang)
+        parts.append(f"op dag {days}" if nl else f"on day {days}")
+    if task.months:
+        parts.append(f"{'in' if nl else 'in'} {_join([_MONTHS[lang][m - 1] for m in task.months], lang)}")
+    text = "".join(f" {p}" for p in parts)
+    if task.active_months:
+        months = _join([_MONTHS[lang][m - 1] for m in task.active_months], lang)
+        text += f" (alleen {months})" if nl else f" ({months} only)"
+    return text
+
+
 def last_done_text(task: Task, data: TodyData, language: str) -> str:
     lang = _lang(language)
     if task.last_done is None:
@@ -384,4 +548,4 @@ def last_done_text(task: Task, data: TodyData, language: str) -> str:
 
 def describe(task: Task, data: TodyData, language: str) -> str:
     """Todo item description: frequency and last completion, in English or Dutch ("nl")."""
-    return f"{frequency_text(task, language)} · {last_done_text(task, data, language)}"
+    return f"{frequency_text(task, language)}{schedule_text(task, language)} · {last_done_text(task, data, language)}"
