@@ -1,0 +1,67 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Verbinden met Tody",
+        "description": "Maak in de Tody-app een uitnodiging aan voor een nieuwe deelnemer (bijvoorbeeld \"Home Assistant\") en vul hier de uitnodigingscode in. Home Assistant leest je taken alleen; taken worden nooit als gedaan gemarkeerd.",
+        "data": {
+          "invite_code": "Uitnodigingscode"
+        },
+        "data_description": {
+          "invite_code": "De uitnodigingscode die de Tody-app toont wanneer je iemand uitnodigt voor je datasynchronisatie."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Opnieuw verbinden met Tody",
+        "description": "Home Assistant heeft geen toegang meer tot je Tody-datasynchronisatie. Maak in de Tody-app een nieuwe uitnodiging aan voor dezelfde datasynchronisatie en vul de code hier in.",
+        "data": {
+          "invite_code": "Uitnodigingscode"
+        },
+        "data_description": {
+          "invite_code": "Een nieuwe uitnodigingscode voor dezelfde Tody-datasynchronisatie."
+        }
+      }
+    },
+    "error": {
+      "invalid_code": "De uitnodigingscode is onbekend of verlopen.",
+      "cannot_connect": "Kan geen verbinding maken met Tody.",
+      "unknown": "Onverwachte fout."
+    },
+    "abort": {
+      "already_configured": "Deze Tody-datasynchronisatie is al geconfigureerd.",
+      "reauth_successful": "Opnieuw verbinden is gelukt.",
+      "wrong_sync": "De uitnodigingscode hoort bij een andere Tody-datasynchronisatie.",
+      "api_key_missing": "De Firebase API-sleutel in custom_components/tody/const.py is nog niet ingevuld. Zie de README."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tody-opties",
+        "data": {
+          "lookahead_days": "Vooruitkijken (dagen)",
+          "scan_interval": "Update-interval (minuten)"
+        },
+        "data_description": {
+          "lookahead_days": "Toon naast achterstallige taken en taken van vandaag ook taken die binnen dit aantal dagen moeten (0-7).",
+          "scan_interval": "Hoe vaak taken uit Tody worden opgehaald (5-240 minuten)."
+        }
+      }
+    }
+  },
+  "entity": {
+    "todo": {
+      "all_tasks": {
+        "name": "Alle taken"
+      }
+    },
+    "sensor": {
+      "overdue": {
+        "name": "Achterstallige taken"
+      },
+      "due_today": {
+        "name": "Vandaag te doen"
+      }
+    }
+  }
+}

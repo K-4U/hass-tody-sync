@@ -1,0 +1,67 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Tody",
+        "description": "In the Tody app, create an invite for a new participant (for example \"Home Assistant\") and enter the invite code here. Home Assistant only reads your tasks; it never marks tasks as done.",
+        "data": {
+          "invite_code": "Invite code"
+        },
+        "data_description": {
+          "invite_code": "The invite code shown in the Tody app when inviting someone to your data sync."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reconnect to Tody",
+        "description": "Home Assistant lost access to your Tody data sync. Create a new invite in the Tody app for the same data sync and enter the code here.",
+        "data": {
+          "invite_code": "Invite code"
+        },
+        "data_description": {
+          "invite_code": "A fresh invite code for the same Tody data sync."
+        }
+      }
+    },
+    "error": {
+      "invalid_code": "The invite code is unknown or has expired.",
+      "cannot_connect": "Failed to connect to Tody.",
+      "unknown": "Unexpected error."
+    },
+    "abort": {
+      "already_configured": "This Tody data sync is already configured.",
+      "reauth_successful": "Re-authentication was successful.",
+      "wrong_sync": "The invite code belongs to a different Tody data sync.",
+      "api_key_missing": "The Firebase API key in custom_components/tody/const.py has not been filled in. See the README."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tody options",
+        "data": {
+          "lookahead_days": "Look-ahead (days)",
+          "scan_interval": "Update interval (minutes)"
+        },
+        "data_description": {
+          "lookahead_days": "Besides overdue tasks and tasks due today, also show tasks due within this many days (0-7).",
+          "scan_interval": "How often to fetch tasks from Tody (5-240 minutes)."
+        }
+      }
+    }
+  },
+  "entity": {
+    "todo": {
+      "all_tasks": {
+        "name": "All tasks"
+      }
+    },
+    "sensor": {
+      "overdue": {
+        "name": "Overdue tasks"
+      },
+      "due_today": {
+        "name": "Due today"
+      }
+    }
+  }
+}

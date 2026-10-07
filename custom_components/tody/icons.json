@@ -1,0 +1,17 @@
+{
+  "entity": {
+    "todo": {
+      "all_tasks": {
+        "default": "mdi:broom"
+      }
+    },
+    "sensor": {
+      "overdue": {
+        "default": "mdi:calendar-alert"
+      },
+      "due_today": {
+        "default": "mdi:calendar-today"
+      }
+    }
+  }
+}
