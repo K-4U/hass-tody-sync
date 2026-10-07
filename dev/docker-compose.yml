@@ -1,0 +1,14 @@
+# Local Home Assistant for developing the Tody integration.
+# Start: docker compose -f dev/docker-compose.yml up -d   → http://localhost:8123
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: tody-ha-dev
+    restart: unless-stopped
+    ports:
+      - "8123:8123"
+    environment:
+      TZ: Europe/Amsterdam
+    volumes:
+      - ./config:/config
+      - ../custom_components/tody:/config/custom_components/tody

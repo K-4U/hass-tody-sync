@@ -1,0 +1,13 @@
+# Pulled Tody APKs (proprietary, large)
+apk/
+
+# Dev Home Assistant runtime data; only configuration.yaml is tracked
+dev/config/*
+!dev/config/configuration.yaml
+
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.DS_Store
+dev/.dev-credentials
