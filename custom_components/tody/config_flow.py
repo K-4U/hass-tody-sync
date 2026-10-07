@@ -12,8 +12,12 @@ from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResu
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
+from homeassistant.helpers.selector import AreaSelector
+
 from .api import JoinResult, TodyClient, TodyConnectionError, TodyInviteError
+from .areas import link_ha_area, linked_ha_area, match_ha_area
 from .const import (
+    CONF_AUTO_LINKED_AREAS,
     CONF_INVITE_CODE,
     CONF_LOOKAHEAD_DAYS,
     CONF_MASTERDATA_ID,
@@ -100,12 +104,19 @@ class TodyConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class TodyOptionsFlow(OptionsFlowWithReload):
-    """Look-ahead window and polling interval."""
+    """Look-ahead window, polling interval and links from Tody areas to HA areas."""
+
+    def __init__(self) -> None:
+        """Initialize the options flow."""
+        self._options: dict[str, Any] = {}
+        # Form field label (the Tody area name) -> Tody area id
+        self._area_fields: dict[str, str] = {}
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Manage the options."""
+        """Look-ahead and polling interval."""
         if user_input is not None:
-            return self.async_create_entry(data=user_input)
+            self._options = user_input
+            return await self.async_step_areas()
 
         options = self.config_entry.options
         schema = vol.Schema(
@@ -121,3 +132,34 @@ class TodyOptionsFlow(OptionsFlowWithReload):
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
+
+    async def async_step_areas(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Pick a Home Assistant area per Tody area (stored as the area list's entity area)."""
+        entry = self.config_entry
+        masterdata_id = entry.data[CONF_MASTERDATA_ID]
+        if user_input is not None:
+            for label, tody_area_id in self._area_fields.items():
+                link_ha_area(self.hass, masterdata_id, tody_area_id, user_input.get(label))
+            return self._async_save()
+
+        coordinator = getattr(entry, "runtime_data", None)
+        data = coordinator.data if coordinator else None
+        if data is None or not data.areas:
+            return self._async_save()
+
+        fields: dict[Any, Any] = {}
+        for area in sorted(data.areas.values(), key=lambda area: area.name.casefold()):
+            label = area.name
+            while label in self._area_fields:
+                label += " "
+            self._area_fields[label] = area.id
+            current = linked_ha_area(self.hass, masterdata_id, area.id)
+            if current is None and area.id not in entry.options.get(CONF_AUTO_LINKED_AREAS, []):
+                current = match_ha_area(self.hass, area.name)
+            fields[vol.Optional(label, description={"suggested_value": current})] = AreaSelector()
+        return self.async_show_form(step_id="areas", data_schema=vol.Schema(fields))
+
+    @callback
+    def _async_save(self) -> ConfigFlowResult:
+        # Keep options this flow doesn't edit (e.g. which areas were auto-linked already).
+        return self.async_create_entry(data={**self.config_entry.options, **self._options})

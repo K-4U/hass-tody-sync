@@ -60,6 +60,44 @@ Configure under the integration's **Configure** button.
 
 Data is polled; there is no live listener.
 
+## Linking Tody areas to Home Assistant areas
+
+Each Tody area's to-do list can be placed in a Home Assistant area:
+
+- **Automatically:** when a Tody area's list is first created, it goes into the HA area with the same name or alias (case-insensitive), if there is one. This happens once per area; if you unlink it later, it stays unlinked.
+- **Options:** the second page of **Configure** shows every Tody area with an area picker. Leave a picker empty to unlink.
+- **Entity settings:** the link *is* the to-do list entity's area, so changing the area in that entity's settings does the same thing.
+
+The **Overdue tasks** and **Due today** sensors list every task under the `items` attribute (`name`, `area`, `ha_area`, `due`), plus `ha_areas`, the distinct HA areas with such tasks.
+
+### Example: vacuum rooms that have a due vacuum task
+
+Map your robot vacuum's rooms to HA areas first (vacuum entity settings → **Map vacuum segments to areas**). Then:
+
+```yaml
+alias: Vacuum rooms with a due Tody vacuum task
+triggers:
+  - trigger: time
+    at: "10:00:00"
+actions:
+  - variables:
+      vacuum_areas: >
+        {{ ((state_attr('sensor.tody_overdue_tasks', 'items') or [])
+            + (state_attr('sensor.tody_due_today', 'items') or []))
+           | selectattr('ha_area')
+           | selectattr('name', 'search', '(?i)vacuum floor')
+           | map(attribute='ha_area') | unique | list }}
+  - condition: template
+    value_template: "{{ vacuum_areas | count > 0 }}"
+  - action: vacuum.clean_area
+    target:
+      entity_id: vacuum.robot
+    data:
+      cleaning_area_id: "{{ vacuum_areas }}"
+```
+
+Adjust `vacuum floor` to match your task names, and `vacuum.robot` to your vacuum. Remember the integration is read-only: Tody still shows the task as due until someone ticks it off in the app.
+
 ## How due dates are calculated
 
 A task is due on its **last completion + its interval**. Time during which the task is paused, and vacation time, pushes the due date back, similar to the Tody app. Only the date is used, not the time of day. Nothing is shown as due while a vacation is active.

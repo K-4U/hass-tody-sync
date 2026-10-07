@@ -9,10 +9,12 @@ from datetime import date, timedelta
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription, SensorStateClass
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import model
+from .areas import linked_ha_area
 from .coordinator import TodyConfigEntry, TodyCoordinator
 from .entity import TodyEntity, today
 from .model import Task, TodyData
@@ -71,6 +73,24 @@ class TodyTaskCountSensor(TodyEntity, SensorEntity):
         super().__init__(coordinator, description.key)
         self.entity_description = description
 
+    async def async_added_to_hass(self) -> None:
+        """Also refresh the ha_area attributes when an area link changes."""
+        await super().async_added_to_hass()
+
+        @callback
+        def _area_changed(event_data: er.EventEntityRegistryUpdatedData) -> bool:
+            return event_data["action"] == "update" and "area_id" in event_data["changes"]
+
+        self.async_on_remove(
+            self.hass.bus.async_listen(
+                er.EVENT_ENTITY_REGISTRY_UPDATED, self._async_area_changed, event_filter=_area_changed
+            )
+        )
+
+    @callback
+    def _async_area_changed(self, _event: Event[er.EventEntityRegistryUpdatedData]) -> None:
+        self.async_write_ha_state()
+
     def _tasks(self) -> list[Task]:
         data = self.coordinator.data
         return [] if data is None else self.entity_description.tasks_fn(data, today())
@@ -82,10 +102,25 @@ class TodyTaskCountSensor(TodyEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Per-area counts and the task names."""
+        """Per-area counts, task names, and per task its Tody and linked HA area."""
         tasks = self._tasks()
         areas = self.coordinator.data.areas if self.coordinator.data else {}
+        masterdata_id = self.coordinator.masterdata_id
         per_area = Counter(
             areas[task.area_id].name if task.area_id in areas else "unknown" for task in tasks
         )
-        return {"areas": dict(per_area), "tasks": [task.name for task in tasks]}
+        items = [
+            {
+                "name": task.name,
+                "area": areas[task.area_id].name if task.area_id in areas else None,
+                "ha_area": linked_ha_area(self.hass, masterdata_id, task.area_id) if task.area_id else None,
+                "due": task.due.isoformat() if task.due else None,
+            }
+            for task in tasks
+        ]
+        return {
+            "areas": dict(per_area),
+            "tasks": [task.name for task in tasks],
+            "ha_areas": sorted({item["ha_area"] for item in items if item["ha_area"]}),
+            "items": items,
+        }

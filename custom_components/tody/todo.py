@@ -10,7 +10,8 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import model
-from .const import CONF_LOOKAHEAD_DAYS, CONF_PARTICIPANT_ID, DEFAULT_LOOKAHEAD_DAYS
+from .areas import link_ha_area, match_ha_area
+from .const import CONF_AUTO_LINKED_AREAS, CONF_LOOKAHEAD_DAYS, CONF_PARTICIPANT_ID, DEFAULT_LOOKAHEAD_DAYS
 from .coordinator import TodyConfigEntry, TodyCoordinator
 from .entity import TodyEntity, today
 from .model import Task
@@ -130,6 +131,19 @@ class TodyAreaList(_KeyedList):
 
     def _include(self, task: Task) -> bool:
         return task.area_id == self._key
+
+    async def async_added_to_hass(self) -> None:
+        """The first time this list exists, put it in the HA area with the same name."""
+        await super().async_added_to_hass()
+        entry = self.coordinator.config_entry
+        done: list[str] = entry.options.get(CONF_AUTO_LINKED_AREAS, [])
+        if self._key in done or self.registry_entry is None:
+            return
+        if self.registry_entry.area_id is None and (area := self._item()) and (ha_area := match_ha_area(self.hass, area.name)):
+            link_ha_area(self.hass, self.coordinator.masterdata_id, self._key, ha_area)
+        self.hass.config_entries.async_update_entry(
+            entry, options={**entry.options, CONF_AUTO_LINKED_AREAS: [*done, self._key]}
+        )
 
 
 class TodyPersonList(_KeyedList):
