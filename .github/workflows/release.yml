@@ -1,0 +1,63 @@
+name: Release
+
+# Publishing a GitHub release (tag like v0.2.0) runs the checks, then attaches tody.zip,
+# which HACS installs (hacs.json: zip_release).
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  package:
+    name: Package for HACS
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set version from the release tag
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version="${TAG#v}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([a-z0-9.-]*)$ ]]; then
+            echo "::error::Release tag '$TAG' is not a version like v1.2.3"
+            exit 1
+          fi
+          jq --arg v "$version" '.version = $v' custom_components/tody/manifest.json > manifest.tmp
+          mv manifest.tmp custom_components/tody/manifest.json
+
+      # The key is kept out of git; it is only added to the published package.
+      - name: Insert Firebase API key
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+        run: |
+          if [ -z "$FIREBASE_API_KEY" ]; then
+            echo "::error::Repository secret FIREBASE_API_KEY is not set"
+            exit 1
+          fi
+          python3 - <<'PY'
+          import os, pathlib
+          path = pathlib.Path("custom_components/tody/const.py")
+          text = path.read_text()
+          assert "__FIREBASE_API_KEY__" in text, "placeholder not found"
+          path.write_text(text.replace("__FIREBASE_API_KEY__", os.environ["FIREBASE_API_KEY"]))
+          PY
+
+      - name: Build tody.zip
+        run: |
+          cd custom_components/tody
+          zip -r "$GITHUB_WORKSPACE/tody.zip" . -x '*/__pycache__/*' '__pycache__/*'
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" tody.zip --clobber

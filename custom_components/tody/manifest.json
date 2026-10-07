@@ -1,13 +1,15 @@
 {
   "domain": "tody",
   "name": "Tody",
-  "codeowners": [],
+  "codeowners": [
+    "@K-4U"
+  ],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/OWNER/tody-ha",
+  "documentation": "https://github.com/K-4U/hass-tody-sync",
   "integration_type": "service",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/OWNER/tody-ha/issues",
+  "issue_tracker": "https://github.com/K-4U/hass-tody-sync/issues",
   "requirements": [],
   "version": "0.1.0"
 }

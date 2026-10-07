@@ -32,16 +32,18 @@ This project is unofficial and not affiliated with Looploop or Tody. It uses Tod
 
 ### HACS (custom repository)
 
-1. In HACS, open the menu, choose **Custom repositories**, and add `https://github.com/OWNER/tody-ha` as type **Integration**.
-2. Install **Tody** and restart Home Assistant.
+1. In HACS, open the menu, choose **Custom repositories**, and add `https://github.com/K-4U/hass-tody-sync` as type **Integration**.
+2. Install **Tody** (pick the latest release) and restart Home Assistant.
+
+HACS installs the `tody.zip` attached to each GitHub release, which includes the API key (see below). The default branch is hidden in HACS because it only has the placeholder key.
 
 ### Manual
 
-Copy `custom_components/tody` into the `custom_components` folder of your Home Assistant configuration and restart.
+Download `tody.zip` from the latest release, unpack it into `custom_components/tody` in your Home Assistant configuration, and restart.
 
 ## API key
 
-`FIREBASE_API_KEY` in `custom_components/tody/const.py` is a placeholder (`__FIREBASE_API_KEY__`). Before using the integration, replace it with the Firebase API key used by the Tody Android app. The key is not included in this repository.
+`FIREBASE_API_KEY` in `custom_components/tody/const.py` is a placeholder (`__FIREBASE_API_KEY__`) in git. Release packages get the Firebase API key used by the Tody Android app from the repository secret `FIREBASE_API_KEY`. If you run the integration straight from a git checkout, replace the placeholder yourself; until then, setup stops with a message saying the key is missing.
 
 ## Setup
 
@@ -122,4 +124,29 @@ Start a development Home Assistant:
 docker compose -f dev/docker-compose.yml up -d
 ```
 
-It is available at http://localhost:8123. Run the tests with pytest; see `pyproject` / `requirements_test.txt` for the setup.
+It is available at http://localhost:8123 and loads the integration straight from `custom_components/tody`; restart the container after code changes.
+
+Tests need Python 3.14 (the Home Assistant 2026.9 test harness requires it):
+
+```sh
+uv venv --python 3.14 .venv
+uv pip install --python .venv/bin/python -r requirements_test.txt
+.venv/bin/python -m pytest
+```
+
+### Continuous integration
+
+- **CI** (`.github/workflows/ci.yml`) runs on every pull request and push to `main`: the tests, [hassfest](https://github.com/home-assistant/actions#hassfest) and the [HACS validation action](https://github.com/hacs/action).
+- **Release** (`.github/workflows/release.yml`) runs when a GitHub release is published with a tag like `v0.2.0`: it reruns CI, sets the manifest version from the tag, inserts the API key from the `FIREBASE_API_KEY` secret and attaches `tody.zip` to the release.
+
+### Repository setup (once)
+
+1. Add the repository secret `FIREBASE_API_KEY` (Settings → Secrets and variables → Actions).
+2. Require green checks before merging into `main` by applying the ruleset in `.github/rulesets/protect-main.json`:
+
+   ```sh
+   gh api repos/K-4U/hass-tody-sync/rulesets --method POST --input .github/rulesets/protect-main.json
+   ```
+
+   It requires a pull request plus passing **Tests**, **Hassfest** and **HACS validation** checks, and blocks force-pushes and deleting `main`.
+3. HACS validation also expects a repository description and topics (e.g. `home-assistant`, `hacs`, `integration`).
