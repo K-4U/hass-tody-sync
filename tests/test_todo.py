@@ -85,11 +85,18 @@ async def test_device(
 @pytest.mark.usefixtures("setup_integration")
 async def test_items_per_list(hass: HomeAssistant) -> None:
     """Lists contain due tasks up to tomorrow, filtered by area/turn; paused and later tasks are hidden."""
-    assert await _summaries(hass, "todo.tody_all_tasks") == ["Vacuum", "Dishes", "Hass task", "Mirror", "Toilet"]
+    # Lists that mix areas name the area; area lists don't.
+    assert await _summaries(hass, "todo.tody_all_tasks") == [
+        "Vacuum [Kitchen]",
+        "Dishes [Kitchen]",
+        "Hass task [Kitchen]",
+        "Mirror [Bathroom]",
+        "Toilet [Bathroom]",
+    ]
     assert await _summaries(hass, "todo.kitchen_kitchen_tasks") == ["Vacuum", "Dishes", "Hass task"]
     assert await _summaries(hass, "todo.bathroom_bathroom_tasks") == ["Mirror", "Toilet"]
-    assert await _summaries(hass, "todo.tody_anna") == ["Vacuum", "Mirror"]
-    assert await _summaries(hass, "todo.tody_bob") == ["Dishes", "Mirror", "Toilet"]
+    assert await _summaries(hass, "todo.tody_anna") == ["Vacuum [Kitchen]", "Mirror [Bathroom]"]
+    assert await _summaries(hass, "todo.tody_bob") == ["Dishes [Kitchen]", "Mirror [Bathroom]", "Toilet [Bathroom]"]
     assert hass.states.get("todo.tody_all_tasks").state == "5"
     assert hass.states.get("todo.kitchen_kitchen_tasks").state == "3"
 
@@ -147,7 +154,7 @@ async def test_dynamic_entities(
     await hass.async_block_till_done()
 
     assert await _summaries(hass, "todo.garden_garden_tasks") == ["Mow"]
-    assert await _summaries(hass, "todo.tody_cleo") == ["Mow"]
+    assert await _summaries(hass, "todo.tody_cleo") == ["Mow [Garden]"]
     assert hass.states.get("todo.bathroom_bathroom_tasks").state == STATE_UNAVAILABLE
     assert hass.states.get("todo.kitchen_kitchen_tasks").state == "3"
 
