@@ -40,11 +40,11 @@ async def _summaries(hass: HomeAssistant, entity_id: str) -> list[str]:
 async def test_entities_and_unique_ids(hass: HomeAssistant, entity_registry: er.EntityRegistry) -> None:
     """One list per area, an 'All tasks' list and one per participant except our own."""
     expected = {
-        "todo.our_house_all_tasks": f"{MASTERDATA_ID}_all",
-        "todo.our_house_kitchen": f"{MASTERDATA_ID}_area_a-kitchen",
-        "todo.our_house_bathroom": f"{MASTERDATA_ID}_area_a-bath",
-        "todo.our_house_anna": f"{MASTERDATA_ID}_person_{ANNA}",
-        "todo.our_house_bob": f"{MASTERDATA_ID}_person_{BOB}",
+        "todo.tody_all_tasks": f"{MASTERDATA_ID}_all",
+        "todo.tody_kitchen": f"{MASTERDATA_ID}_area_a-kitchen",
+        "todo.tody_bathroom": f"{MASTERDATA_ID}_area_a-bath",
+        "todo.tody_anna": f"{MASTERDATA_ID}_person_{ANNA}",
+        "todo.tody_bob": f"{MASTERDATA_ID}_person_{BOB}",
     }
     for entity_id, unique_id in expected.items():
         entry = entity_registry.async_get(entity_id)
@@ -64,7 +64,7 @@ async def test_device(
     """All entities share one service device."""
     device = device_registry.async_get_device_by_identifier((DOMAIN, MASTERDATA_ID), setup_integration.entry_id)
     assert device is not None
-    assert device.name == "Our House"
+    assert device.name == "Tody"
     assert device.manufacturer == "Looploop"
     assert device.model == "Tody"
     assert device.entry_type is dr.DeviceEntryType.SERVICE
@@ -74,19 +74,19 @@ async def test_device(
 @pytest.mark.usefixtures("setup_integration")
 async def test_items_per_list(hass: HomeAssistant) -> None:
     """Lists contain due tasks up to tomorrow, filtered by area/turn; paused and later tasks are hidden."""
-    assert await _summaries(hass, "todo.our_house_all_tasks") == ["Vacuum", "Dishes", "Hass task", "Mirror", "Toilet"]
-    assert await _summaries(hass, "todo.our_house_kitchen") == ["Vacuum", "Dishes", "Hass task"]
-    assert await _summaries(hass, "todo.our_house_bathroom") == ["Mirror", "Toilet"]
-    assert await _summaries(hass, "todo.our_house_anna") == ["Vacuum", "Mirror"]
-    assert await _summaries(hass, "todo.our_house_bob") == ["Dishes", "Mirror", "Toilet"]
-    assert hass.states.get("todo.our_house_all_tasks").state == "5"
-    assert hass.states.get("todo.our_house_kitchen").state == "3"
+    assert await _summaries(hass, "todo.tody_all_tasks") == ["Vacuum", "Dishes", "Hass task", "Mirror", "Toilet"]
+    assert await _summaries(hass, "todo.tody_kitchen") == ["Vacuum", "Dishes", "Hass task"]
+    assert await _summaries(hass, "todo.tody_bathroom") == ["Mirror", "Toilet"]
+    assert await _summaries(hass, "todo.tody_anna") == ["Vacuum", "Mirror"]
+    assert await _summaries(hass, "todo.tody_bob") == ["Dishes", "Mirror", "Toilet"]
+    assert hass.states.get("todo.tody_all_tasks").state == "5"
+    assert hass.states.get("todo.tody_kitchen").state == "3"
 
 
 @pytest.mark.usefixtures("setup_integration")
 async def test_item_fields(hass: HomeAssistant) -> None:
     """Items carry uid, a date-only due and a description; they're always needs_action."""
-    items = await _items(hass, "todo.our_house_bathroom")
+    items = await _items(hass, "todo.tody_bathroom")
     toilet = items[1]
     assert toilet["uid"] == "t-tomorrow"
     assert toilet["status"] == "needs_action"
@@ -97,13 +97,13 @@ async def test_item_fields(hass: HomeAssistant) -> None:
 @pytest.mark.usefixtures("setup_integration")
 async def test_read_only(hass: HomeAssistant) -> None:
     """Lists support no write features and reject item changes."""
-    state = hass.states.get("todo.our_house_all_tasks")
+    state = hass.states.get("todo.tody_all_tasks")
     assert state.attributes[ATTR_SUPPORTED_FEATURES] == 0
     with pytest.raises(ServiceValidationError):
         await hass.services.async_call(
             TODO_DOMAIN,
             TodoServices.ADD_ITEM,
-            {ATTR_ENTITY_ID: "todo.our_house_all_tasks", "item": "New"},
+            {ATTR_ENTITY_ID: "todo.tody_all_tasks", "item": "New"},
             blocking=True,
         )
 
@@ -114,7 +114,7 @@ async def test_lookahead_zero(hass: HomeAssistant, config_entry: MockConfigEntry
     hass.config_entries.async_update_entry(config_entry, options={"lookahead_days": 0})
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
-    assert await _summaries(hass, "todo.our_house_bathroom") == ["Mirror"]
+    assert await _summaries(hass, "todo.tody_bathroom") == ["Mirror"]
 
 
 async def test_dynamic_entities(
@@ -135,17 +135,17 @@ async def test_dynamic_entities(
     await coordinator.async_refresh()
     await hass.async_block_till_done()
 
-    assert await _summaries(hass, "todo.our_house_garden") == ["Mow"]
-    assert await _summaries(hass, "todo.our_house_cleo") == ["Mow"]
-    assert hass.states.get("todo.our_house_bathroom").state == STATE_UNAVAILABLE
-    assert hass.states.get("todo.our_house_kitchen").state == "3"
+    assert await _summaries(hass, "todo.tody_garden") == ["Mow"]
+    assert await _summaries(hass, "todo.tody_cleo") == ["Mow"]
+    assert hass.states.get("todo.tody_bathroom").state == STATE_UNAVAILABLE
+    assert hass.states.get("todo.tody_kitchen").state == "3"
 
 
 async def test_midnight_refresh(
     hass: HomeAssistant, setup_integration: MockConfigEntry, mock_client: MagicMock, freezer
 ) -> None:
     """At local midnight the lists are re-evaluated without waiting for a poll."""
-    assert hass.states.get("todo.our_house_bathroom").state == "2"
+    assert hass.states.get("todo.tody_bathroom").state == "2"
     # Stop polling so only the midnight timer can update state.
     setup_integration.runtime_data._unschedule_refresh()
     fetches = mock_client.fetch_snapshot.await_count
@@ -153,5 +153,5 @@ async def test_midnight_refresh(
     freezer.move_to("2026-10-09 07:00:05+00:00")
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
-    assert hass.states.get("todo.our_house_bathroom").state == "3"
+    assert hass.states.get("todo.tody_bathroom").state == "3"
     assert mock_client.fetch_snapshot.await_count == fetches

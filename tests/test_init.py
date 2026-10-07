@@ -67,7 +67,7 @@ async def test_auth_error_during_polling(
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
 
-    assert hass.states.get("todo.our_house_all_tasks").state == STATE_UNAVAILABLE
+    assert hass.states.get("todo.tody_all_tasks").state == STATE_UNAVAILABLE
     flows = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
     assert len(flows) == 1
     assert flows[0]["context"]["source"] == SOURCE_REAUTH

@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import Final
 
 DOMAIN: Final = "tody"
+# Name of the integration entry and its device (the Tody sync name is often a random phrase).
+DEVICE_NAME: Final = "Tody"
 
 # Tody's Firebase backend, as used by the Tody Android app.
 FIREBASE_PROJECT_ID: Final = "tody-96d33"

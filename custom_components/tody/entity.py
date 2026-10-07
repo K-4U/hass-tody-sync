@@ -10,7 +10,7 @@ from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN
+from .const import DEVICE_NAME, DOMAIN
 from .coordinator import TodyCoordinator
 
 
@@ -26,7 +26,7 @@ class TodyEntity(CoordinatorEntity[TodyCoordinator]):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, coordinator.masterdata_id)},
             entry_type=DeviceEntryType.SERVICE,
-            name=(coordinator.data.sync_name if coordinator.data else None) or coordinator.config_entry.title,
+            name=DEVICE_NAME,
             manufacturer="Looploop",
             model="Tody",
         )

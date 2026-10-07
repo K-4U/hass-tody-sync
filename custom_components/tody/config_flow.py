@@ -12,7 +12,7 @@ from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResu
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import JoinResult, TodyClient, TodyConnectionError, TodyError, TodyInviteError
+from .api import JoinResult, TodyClient, TodyConnectionError, TodyInviteError
 from .const import (
     CONF_INVITE_CODE,
     CONF_LOOKAHEAD_DAYS,
@@ -23,6 +23,7 @@ from .const import (
     CONF_UID,
     DEFAULT_LOOKAHEAD_DAYS,
     DEFAULT_SCAN_INTERVAL,
+    DEVICE_NAME,
     DOMAIN,
     FIREBASE_API_KEY,
     MAX_LOOKAHEAD_DAYS,
@@ -33,7 +34,6 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-DEFAULT_TITLE = "Tody"
 INVITE_SCHEMA = vol.Schema({vol.Required(CONF_INVITE_CODE): str})
 
 
@@ -42,26 +42,19 @@ class TodyConfigFlow(ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    async def _async_join(self, invite_code: str) -> tuple[dict[str, Any] | None, str, dict[str, str]]:
-        """Join the sync; returns (entry data, title, errors)."""
+    async def _async_join(self, invite_code: str) -> tuple[dict[str, Any] | None, dict[str, str]]:
+        """Join the sync; returns (entry data, errors)."""
         tokens: list[str] = []
         client = TodyClient(async_get_clientsession(self.hass), on_refresh_token=tokens.append)
         try:
             result: JoinResult = await client.join(invite_code.strip())
         except TodyInviteError:
-            return None, DEFAULT_TITLE, {"base": "invalid_code"}
+            return None, {"base": "invalid_code"}
         except TodyConnectionError:
-            return None, DEFAULT_TITLE, {"base": "cannot_connect"}
+            return None, {"base": "cannot_connect"}
         except Exception:
             _LOGGER.exception("Unexpected error joining Tody data sync")
-            return None, DEFAULT_TITLE, {"base": "unknown"}
-
-        title = DEFAULT_TITLE
-        try:
-            snapshot = await client.fetch_snapshot(result.masterdata_id)
-            title = (snapshot.get("fbMetadata") or [{}])[0].get("dataSyncName") or DEFAULT_TITLE
-        except TodyError:
-            _LOGGER.debug("Could not read sync name, using default title", exc_info=True)
+            return None, {"base": "unknown"}
 
         data = {
             CONF_UID: result.uid,
@@ -69,7 +62,7 @@ class TodyConfigFlow(ConfigFlow, domain=DOMAIN):
             CONF_MASTERDATA_ID: result.masterdata_id,
             CONF_PARTICIPANT_ID: result.participant_id,
         }
-        return data, title, {}
+        return data, {}
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Ask for the invite code."""
@@ -77,11 +70,11 @@ class TodyConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="api_key_missing")
         errors: dict[str, str] = {}
         if user_input is not None:
-            data, title, errors = await self._async_join(user_input[CONF_INVITE_CODE])
+            data, errors = await self._async_join(user_input[CONF_INVITE_CODE])
             if data is not None:
                 await self.async_set_unique_id(data[CONF_MASTERDATA_ID])
                 self._abort_if_unique_id_configured()
-                return self.async_create_entry(title=title, data=data)
+                return self.async_create_entry(title=DEVICE_NAME, data=data)
         return self.async_show_form(step_id="user", data_schema=INVITE_SCHEMA, errors=errors)
 
     async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
@@ -92,7 +85,7 @@ class TodyConfigFlow(ConfigFlow, domain=DOMAIN):
         """Re-join with a new invite code for the same data sync."""
         errors: dict[str, str] = {}
         if user_input is not None:
-            data, _title, errors = await self._async_join(user_input[CONF_INVITE_CODE])
+            data, errors = await self._async_join(user_input[CONF_INVITE_CODE])
             if data is not None:
                 await self.async_set_unique_id(data[CONF_MASTERDATA_ID])
                 self._abort_if_unique_id_mismatch(reason="wrong_sync")
